@@ -84,7 +84,7 @@ class UserController extends Controller
      */
     public function edit(User $user)
     {
-        $this->authorize('update', $user);
+        $this->authorize('update', [$user, $user]);
         
         $roles = Role::all();
         
@@ -99,7 +99,7 @@ class UserController extends Controller
      */
     public function update(Request $request, User $user)
     {
-        $this->authorize('update', $user);
+        $this->authorize('update', [$user, $user]);
         
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -142,7 +142,7 @@ class UserController extends Controller
      */
     public function updatePassword(Request $request, User $user)
     {
-        $this->authorize('update', $user);
+        $this->authorize('update', [$user, $user]);
         
         $validated = $request->validate([
             'password' => 'required|string|min:8|confirmed',

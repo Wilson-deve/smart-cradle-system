@@ -38,6 +38,7 @@ class MonitoringController extends Controller
     public function getDeviceData(Device $device)
     {
         $this->authorize('view', 'monitoring');
+        $this->authorize('monitor', $device);
         
         // Get real-time sensor data
         $sensorData = [
@@ -54,6 +55,7 @@ class MonitoringController extends Controller
         // Get device status and settings
         $deviceStatus = [
             'status' => $device->status,
+            'last_activity_at' => $device->last_activity_at,
             'swing_status' => $device->settings['swing']['enabled'] ?? false,
             'music_status' => $device->settings['music']['enabled'] ?? false,
             'projector_status' => $device->settings['projector']['enabled'] ?? false,
@@ -72,11 +74,26 @@ class MonitoringController extends Controller
             'projector_usage' => $this->calculateProjectorUsage($device),
         ];
 
+        // Get latest sensor readings from database
+        $latestReadings = $device->sensorReadings()
+            ->latest()
+            ->first();
+
+        // Combine real-time and stored data
         return response()->json([
             'sensor_data' => $sensorData,
             'device_status' => $deviceStatus,
             'recent_alerts' => $recentAlerts,
             'usage_stats' => $usageStats,
+            'stored_readings' => $latestReadings ? [
+                'temperature' => $latestReadings->temperature,
+                'humidity' => $latestReadings->humidity,
+                'noise_level' => $latestReadings->noise_level,
+                'light_level' => $latestReadings->light_level,
+                'movement_detected' => $latestReadings->movement_detected,
+                'wetness_detected' => $latestReadings->wetness_detected,
+                'timestamp' => $latestReadings->created_at->toIso8601String(),
+            ] : null,
         ]);
     }
 
@@ -86,6 +103,7 @@ class MonitoringController extends Controller
     public function getCameraFeed(Device $device)
     {
         $this->authorize('view', 'monitoring');
+        $this->authorize('monitor', $device);
         
         // Get camera feed URL and status
         $cameraData = [
@@ -103,7 +121,7 @@ class MonitoringController extends Controller
      */
     public function getHealthAnalytics(Device $device)
     {
-        $this->authorize('view', $device);
+        $this->authorize('viewHealth', $device);
         
         // Get device health metrics
         $healthMetrics = [
@@ -132,7 +150,7 @@ class MonitoringController extends Controller
      */
     public function getAlerts(Device $device = null)
     {
-        $this->authorize('viewAny', Alert::class);
+        $this->authorize('alerts', 'monitoring');
         
         $user = Auth::user();
         
@@ -159,7 +177,7 @@ class MonitoringController extends Controller
      */
     public function markAlertAsRead(Alert $alert)
     {
-        $this->authorize('update', $alert);
+        $this->authorize('updateAlerts', 'monitoring');
         
         $alert->markAsRead();
         
@@ -174,7 +192,7 @@ class MonitoringController extends Controller
      */
     public function markAllAlertsAsRead(Request $request)
     {
-        $this->authorize('update', Alert::class);
+        $this->authorize('updateAlerts', 'monitoring');
         
         $user = Auth::user();
         

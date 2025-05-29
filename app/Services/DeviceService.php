@@ -14,6 +14,11 @@ class DeviceService
      */
     public function registerDevice(array $data, User $user): Device
     {
+        // Check if the user is a parent and already has a device
+        if ($user->hasRole('parent') && $user->devices()->count() > 0) {
+            throw new \Exception('Parent users can only have one device.');
+        }
+
         return DB::transaction(function () use ($data, $user) {
             $device = Device::create([
                 'name' => $data['name'],
@@ -59,6 +64,17 @@ class DeviceService
      */
     public function assignUser(Device $device, User $user, string $relationshipType, array $permissions): void
     {
+        // Check if the user is a parent and already has a device
+        if ($user->hasRole('parent') && $relationshipType === 'owner') {
+            $existingDevice = $user->devices()
+                ->where('devices.id', '!=', $device->id)
+                ->first();
+                
+            if ($existingDevice) {
+                throw new \Exception('Parent users can only have one device.');
+            }
+        }
+
         DB::transaction(function () use ($device, $user, $relationshipType, $permissions) {
             $device->users()->attach($user->id, [
                 'relationship_type' => $relationshipType,

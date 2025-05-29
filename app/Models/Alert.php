@@ -43,6 +43,14 @@ class Alert extends Model
     }
 
     /**
+     * Get the user that the alert belongs to.
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /**
      * Get the parent alertable model.
      */
     public function alertable(): MorphTo

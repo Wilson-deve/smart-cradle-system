@@ -2,13 +2,16 @@ export interface User {
     id: number;
     name: string;
     email: string;
-    email_verified_at?: string;
+    role: string;
+    permissions: string[];
 }
 
-export type PageProps<
-    T extends Record<string, unknown> = Record<string, unknown>,
-> = T & {
+export interface PageProps {
     auth: {
-        user: User;
+        user: User | null;
     };
-};
+    flash?: {
+        message?: string;
+        error?: string;
+    };
+}

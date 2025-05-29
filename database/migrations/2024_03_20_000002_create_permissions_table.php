@@ -6,18 +6,21 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    public function up()
+    public function up(): void
     {
         Schema::create('permissions', function (Blueprint $table) {
             $table->id();
             $table->string('name')->unique();
             $table->string('slug')->unique();
-            $table->text('description')->nullable();
+            $table->string('description')->nullable();
             $table->timestamps();
+            
+            // Add index for better performance
+            $table->index('slug');
         });
     }
 
-    public function down()
+    public function down(): void
     {
         Schema::dropIfExists('permissions');
     }

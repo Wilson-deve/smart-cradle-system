@@ -1,328 +1,239 @@
-import { PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import { Head, router } from '@inertiajs/react';
-import { useState } from 'react';
-import ParentLayout from '../../Layouts/ParentLayout';
+import { Head } from '@inertiajs/react';
+import { useState, useEffect } from 'react';
+import {
+  VideoCameraIcon,
+  BellIcon,
+  ChartBarIcon,
+  UserGroupIcon,
+  Cog6ToothIcon,
+  MusicalNoteIcon,
+} from '@heroicons/react/24/outline';
+import ParentLayout from '@/Layouts/ParentLayout';
+import axios from 'axios';
+import { PageProps } from '@/types';
 
-interface Props {
-  devices: Array<{
-    id: number;
-    name: string;
-    status: string;
-    last_reading: {
-      temperature: number;
-      humidity: number;
-      sound_level: number;
-      motion: boolean;
-    };
-    controls: {
-      swing: boolean;
-      lullaby: boolean;
-    };
-  }>;
-  babysitters: Array<{
-    id: number;
-    name: string;
-    email: string;
-    status: string;
-    last_active: string;
-  }>;
-  alerts: Array<{
-    id: number;
-    type: string;
-    message: string;
-    severity: string;
-    created_at: string;
-  }>;
-  health_metrics: {
-    average_temperature: number;
-    average_humidity: number;
-    crying_episodes: number;
-    last_crying_episode: string;
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  permissions: string[];
+}
+
+interface Device {
+  id: number;
+  name: string;
+  status: string;
+  last_activity_at: string;
+  settings?: {
+    is_swinging: boolean;
+    swing_speed: number;
+    is_playing_music: boolean;
+    is_projector_on: boolean;
+    volume: number;
   };
 }
 
-export default function Dashboard({
-  devices,
-  babysitters,
-  alerts,
-  health_metrics,
-}: Props) {
-  const [selectedDevice, setSelectedDevice] = useState(devices[0]?.id);
-  const [newBabysitterEmail, setNewBabysitterEmail] = useState('');
-  const [showAddBabysitter, setShowAddBabysitter] = useState(false);
+interface Alert {
+  id: number;
+  type: string;
+  message: string;
+  created_at: string;
+  is_read: boolean;
+}
 
-  const toggleControl = (deviceId: number, control: 'swing' | 'lullaby') => {
-    router.patch(route('parent.devices.controls.toggle', deviceId), {
-      control,
-    });
+interface Activity {
+  id: number;
+  type: string;
+  description: string;
+  timestamp: string;
+}
+
+interface DashboardProps extends PageProps {
+  auth: {
+    user: User;
+  };
+  devices?: Device[];
+  alerts?: Alert[];
+  recent_activities?: Activity[];
+}
+
+const defaultSettings = {
+  swing_speed: 1,
+  is_swinging: false,
+  is_playing_music: false,
+  is_projector_on: false,
+  volume: 50,
+};
+
+export default function Dashboard({ auth, devices = [], alerts = [], recent_activities = [] }: DashboardProps) {
+  const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (devices && devices.length > 0) {
+      const device = devices[0];
+      setSelectedDevice({
+        ...device,
+        settings: device.settings || defaultSettings,
+      });
+    }
+  }, [devices]);
+
+  const handleDeviceControl = async (control: string, value: boolean | number) => {
+    if (!selectedDevice) return;
+
+    setIsLoading(true);
+    try {
+      await axios.patch(route('parent.devices.controls.toggle', selectedDevice.id), {
+        control,
+        value,
+      });
+      
+      // Refresh device data
+      const response = await axios.get(route('parent.devices.show', selectedDevice.id));
+      const updatedDevice = response.data.device;
+      setSelectedDevice({
+        ...updatedDevice,
+        settings: updatedDevice.settings || defaultSettings,
+      });
+    } catch (error) {
+      console.error('Error controlling device:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const addBabysitter = () => {
-    router.post(
-      route('parent.babysitters.store'),
-      {
-        email: newBabysitterEmail,
-      },
-      {
-        onSuccess: () => {
-          setNewBabysitterEmail('');
-          setShowAddBabysitter(false);
-        },
-      },
-    );
-  };
-
-  const removeBabysitter = (babysitterId: number) => {
-    router.delete(route('parent.babysitters.destroy', babysitterId));
-  };
+  // Get the settings with fallback to defaultSettings
+  const deviceSettings = selectedDevice?.settings || defaultSettings;
 
   return (
-    <ParentLayout>
+    <ParentLayout user={auth.user}>
       <Head title="Dashboard" />
 
       <div className="py-12">
-        <div className="mx-auto max-w-7xl sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            {/* Live Monitoring Section */}
-            <div className="space-y-6 lg:col-span-2">
-              {/* Camera Feed */}
-              <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
-                <div className="p-6">
-                  <h2 className="mb-4 text-lg font-medium text-gray-900">
-                    Live Camera Feed
-                  </h2>
-                  <div className="flex aspect-video items-center justify-center rounded-lg bg-gray-200">
-                    <span className="text-gray-500">
-                      Camera feed will be displayed here
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Sensor Readings */}
-              <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
-                <div className="p-6">
-                  <h2 className="mb-4 text-lg font-medium text-gray-900">
-                    Sensor Readings
-                  </h2>
-                  <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                    <div className="rounded-lg bg-gray-50 p-4">
-                      <p className="text-sm text-gray-500">Temperature</p>
-                      <p className="text-2xl font-semibold">
-                        {
-                          devices.find((d) => d.id === selectedDevice)
-                            ?.last_reading.temperature
-                        }
-                        °C
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-gray-50 p-4">
-                      <p className="text-sm text-gray-500">Humidity</p>
-                      <p className="text-2xl font-semibold">
-                        {
-                          devices.find((d) => d.id === selectedDevice)
-                            ?.last_reading.humidity
-                        }
-                        %
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-gray-50 p-4">
-                      <p className="text-sm text-gray-500">Sound Level</p>
-                      <p className="text-2xl font-semibold">
-                        {
-                          devices.find((d) => d.id === selectedDevice)
-                            ?.last_reading.sound_level
-                        }
-                        dB
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-gray-50 p-4">
-                      <p className="text-sm text-gray-500">Motion</p>
-                      <p className="text-2xl font-semibold">
-                        {devices.find((d) => d.id === selectedDevice)
-                          ?.last_reading.motion
-                          ? 'Detected'
-                          : 'None'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Controls */}
-              <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
-                <div className="p-6">
-                  <h2 className="mb-4 text-lg font-medium text-gray-900">
-                    Cradle Controls
-                  </h2>
-                  <div className="flex space-x-4">
-                    <button
-                      onClick={() => toggleControl(selectedDevice!, 'swing')}
-                      className={`rounded-md px-4 py-2 ${
-                        devices.find((d) => d.id === selectedDevice)?.controls
-                          .swing
-                          ? 'bg-green-500 text-white'
-                          : 'bg-gray-200 text-gray-700'
-                      }`}
-                    >
-                      Toggle Swing
-                    </button>
-                    <button
-                      onClick={() => toggleControl(selectedDevice!, 'lullaby')}
-                      className={`rounded-md px-4 py-2 ${
-                        devices.find((d) => d.id === selectedDevice)?.controls
-                          .lullaby
-                          ? 'bg-green-500 text-white'
-                          : 'bg-gray-200 text-gray-700'
-                      }`}
-                    >
-                      Toggle Lullaby
-                    </button>
-                  </div>
+        <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+          {/* Device Selection */}
+          {devices && devices.length > 1 && (
+            <div className="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
+              <div className="max-w-xl">
+                <h2 className="text-lg font-medium text-gray-900">Select Device</h2>
+                <div className="mt-4">
+                  <select
+                    value={selectedDevice?.id}
+                    onChange={(e) => {
+                      const device = devices.find(d => d.id === Number(e.target.value));
+                      if (device) {
+                        setSelectedDevice({
+                          ...device,
+                          settings: device.settings || defaultSettings,
+                        });
+                      } else {
+                        setSelectedDevice(null);
+                      }
+                    }}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  >
+                    {devices.map((device) => (
+                      <option key={device.id} value={device.id}>
+                        {device.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>
+          )}
 
-            {/* Right Sidebar */}
-            <div className="space-y-6">
-              {/* Alerts */}
-              <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
-                <div className="p-6">
-                  <h2 className="mb-4 text-lg font-medium text-gray-900">
-                    Alerts & Notifications
-                  </h2>
-                  <div className="space-y-4">
-                    {alerts.map((alert) => (
-                      <div
-                        key={alert.id}
-                        className={`rounded-lg p-4 ${
-                          alert.severity === 'high'
-                            ? 'bg-red-50 text-red-700'
-                            : alert.severity === 'medium'
-                              ? 'bg-yellow-50 text-yellow-700'
-                              : 'bg-blue-50 text-blue-700'
-                        }`}
-                      >
-                        <p className="font-medium">{alert.message}</p>
-                        <p className="text-sm opacity-75">{alert.created_at}</p>
+          {/* Quick Status */}
+          {selectedDevice && (
+            <div className="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
+              <h2 className="text-lg font-medium text-gray-900 mb-4">Quick Status</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="text-sm font-medium text-gray-500">Device Status</h3>
+                  <p className={`mt-2 text-xl font-semibold ${
+                    selectedDevice.status === 'online' ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {selectedDevice.status.charAt(0).toUpperCase() + selectedDevice.status.slice(1)}
+                  </p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="text-sm font-medium text-gray-500">Swing Status</h3>
+                  <p className="mt-2 text-xl font-semibold">
+                    {deviceSettings.is_swinging ? 'Active' : 'Inactive'}
+                  </p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="text-sm font-medium text-gray-500">Lullaby</h3>
+                  <p className="mt-2 text-xl font-semibold">
+                    {deviceSettings.is_playing_music ? 'Playing' : 'Off'}
+                  </p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="text-sm font-medium text-gray-500">Projector</h3>
+                  <p className="mt-2 text-xl font-semibold">
+                    {deviceSettings.is_projector_on ? 'On' : 'Off'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Recent Alerts */}
+          <div className="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Recent Alerts</h2>
+            <div className="space-y-4">
+              {alerts.length > 0 ? (
+                alerts.map((alert) => (
+                  <div
+                    key={alert.id}
+                    className={`p-4 rounded-lg ${
+                      alert.is_read ? 'bg-gray-50' : 'bg-red-50'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-medium text-gray-900">{alert.type}</p>
+                        <p className="text-sm text-gray-500">{alert.message}</p>
                       </div>
-                    ))}
+                      <span className="text-xs text-gray-400">
+                        {new Date(alert.created_at).toLocaleString()}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              </div>
+                ))
+              ) : (
+                <p className="text-gray-500 text-center py-4">No recent alerts</p>
+              )}
+            </div>
+          </div>
 
-              {/* Babysitters */}
-              <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
-                <div className="p-6">
-                  <div className="mb-4 flex items-center justify-between">
-                    <h2 className="text-lg font-medium text-gray-900">
-                      Babysitters
-                    </h2>
-                    <button
-                      onClick={() => setShowAddBabysitter(true)}
-                      className="text-blue-600 hover:text-blue-800"
-                    >
-                      <PlusIcon className="h-5 w-5" />
-                    </button>
-                  </div>
-                  <div className="space-y-4">
-                    {babysitters.map((babysitter) => (
-                      <div
-                        key={babysitter.id}
-                        className="flex items-center justify-between"
-                      >
-                        <div>
-                          <p className="font-medium">{babysitter.name}</p>
-                          <p className="text-sm text-gray-500">
-                            {babysitter.email}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            Last active: {babysitter.last_active}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => removeBabysitter(babysitter.id)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          <XMarkIcon className="h-5 w-5" />
-                        </button>
+          {/* Recent Activity */}
+          <div className="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Recent Activity</h2>
+            <div className="space-y-4">
+              {recent_activities.length > 0 ? (
+                recent_activities.map((activity) => (
+                  <div key={activity.id} className="bg-gray-50 p-4 rounded-lg">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-medium text-gray-900">{activity.type}</p>
+                        <p className="text-sm text-gray-500">{activity.description}</p>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Health Overview */}
-              <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
-                <div className="p-6">
-                  <h2 className="mb-4 text-lg font-medium text-gray-900">
-                    Health Overview
-                  </h2>
-                  <div className="space-y-4">
-                    <div className="rounded-lg bg-gray-50 p-4">
-                      <p className="text-sm text-gray-500">
-                        Average Temperature
-                      </p>
-                      <p className="text-2xl font-semibold">
-                        {health_metrics.average_temperature}°C
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-gray-50 p-4">
-                      <p className="text-sm text-gray-500">Average Humidity</p>
-                      <p className="text-2xl font-semibold">
-                        {health_metrics.average_humidity}%
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-gray-50 p-4">
-                      <p className="text-sm text-gray-500">
-                        Crying Episodes (Today)
-                      </p>
-                      <p className="text-2xl font-semibold">
-                        {health_metrics.crying_episodes}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Last episode: {health_metrics.last_crying_episode}
-                      </p>
+                      <span className="text-xs text-gray-400">
+                        {new Date(activity.timestamp).toLocaleString()}
+                      </span>
                     </div>
                   </div>
-                </div>
-              </div>
+                ))
+              ) : (
+                <p className="text-gray-500 text-center py-4">No recent activity</p>
+              )}
             </div>
           </div>
         </div>
       </div>
-
-      {/* Add Babysitter Modal */}
-      {showAddBabysitter && (
-        <div className="fixed inset-0 flex items-center justify-center bg-gray-500 bg-opacity-75">
-          <div className="w-full max-w-md rounded-lg bg-white p-6">
-            <h3 className="mb-4 text-lg font-medium text-gray-900">
-              Add New Babysitter
-            </h3>
-            <input
-              type="email"
-              value={newBabysitterEmail}
-              onChange={(e) => setNewBabysitterEmail(e.target.value)}
-              placeholder="Enter babysitter's email"
-              className="w-full rounded-md border border-gray-300 px-3 py-2"
-            />
-            <div className="mt-4 flex justify-end space-x-2">
-              <button
-                onClick={() => setShowAddBabysitter(false)}
-                className="rounded-md bg-gray-200 px-4 py-2 text-gray-700"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={addBabysitter}
-                className="rounded-md bg-blue-600 px-4 py-2 text-white"
-              >
-                Add
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </ParentLayout>
   );
 }

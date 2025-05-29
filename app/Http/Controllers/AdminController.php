@@ -64,6 +64,15 @@ class AdminController extends Controller
         return Inertia::render('Admin/Settings');
     }
 
+    public function deviceMonitoring()
+{
+    return Inertia::render('Admin/DeviceMonitoring', [
+        'initialDevices' => Device::with(['users', 'logs'])
+            ->orderBy('last_activity_at', 'desc')
+            ->get()
+    ]);
+}
+
     public function permissions()
     {
         // This is a placeholder. In a real application, you would fetch roles and permissions from the database

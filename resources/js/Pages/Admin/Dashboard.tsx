@@ -5,6 +5,7 @@ import {
   UsersIcon,
 } from '@heroicons/react/24/outline';
 import { Head } from '@inertiajs/react';
+import { PageProps } from '@/types';
 
 interface Stats {
   users: number;
@@ -12,11 +13,20 @@ interface Stats {
   activeDevices: number;
 }
 
-interface Props {
+interface Props extends PageProps {
   stats: Stats;
 }
 
-export default function Dashboard({ stats }: Props) {
+export default function Dashboard({ auth, stats }: Props) {
+  // If no auth data, show loading state
+  if (!auth?.user) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-gray-500">Loading...</div>
+      </div>
+    );
+  }
+
   const statCards = [
     {
       name: 'Total Users',
@@ -39,7 +49,7 @@ export default function Dashboard({ stats }: Props) {
   ];
 
   return (
-    <AdminLayout>
+    <AdminLayout user={auth.user}>
       <Head title="Admin Dashboard" />
 
       <div className="py-12">

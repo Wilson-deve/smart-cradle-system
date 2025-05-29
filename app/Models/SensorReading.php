@@ -12,14 +12,26 @@ class SensorReading extends Model
 
     protected $fillable = [
         'device_id',
-        'type',
-        'value',
-        'unit',
+        'temperature',
+        'humidity',
+        'noise_level',
+        'movement_detected',
+        'wetness_detected',
+        'light_level',
+        'battery_level',
+        'additional_data',
         'recorded_at',
     ];
 
     protected $casts = [
-        'value' => 'float',
+        'temperature' => 'float',
+        'humidity' => 'float',
+        'noise_level' => 'float',
+        'movement_detected' => 'boolean',
+        'wetness_detected' => 'boolean',
+        'light_level' => 'float',
+        'battery_level' => 'float',
+        'additional_data' => 'array',
         'recorded_at' => 'datetime',
     ];
 

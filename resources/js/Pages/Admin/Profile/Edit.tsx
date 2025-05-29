@@ -6,7 +6,7 @@ import {
   TrashIcon,
   UserIcon,
 } from '@heroicons/react/24/outline';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 
 interface Props {
@@ -68,7 +68,7 @@ export default function Edit({ user, flash }: Props) {
   };
 
   return (
-    <AdminLayout>
+    <AdminLayout user={auth.user}>
       <Head title="Profile" />
 
       <div className="py-12">

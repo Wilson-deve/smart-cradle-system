@@ -6,6 +6,7 @@ import TextInput from '@/Components/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
+import { PageProps } from '@/types';
 
 export default function Login({
   status,
@@ -24,7 +25,16 @@ export default function Login({
     e.preventDefault();
 
     post(route('login'), {
-      onFinish: () => reset('password'),
+      onSuccess: (page) => {
+        console.log('Login successful, page data:', page);
+        console.log('Auth data:', page.props.auth);
+        console.log('User role:', page.props.auth?.user?.role);
+        reset('password');
+      },
+      onError: (errors) => {
+        console.error('Login failed:', errors);
+        reset('password');
+      },
     });
   };
 

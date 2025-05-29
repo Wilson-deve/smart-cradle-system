@@ -84,15 +84,18 @@ class DevicePolicy
     }
 
     /**
-     * Determine whether the user can view device monitoring.
+     * Determine whether the user can monitor the device.
      */
     public function monitor(User $user, Device $device): bool
     {
-        return $user->hasRole('admin') || 
-               $device->users()
-                   ->where('user_id', $user->id)
-                   ->whereIn('relationship_type', ['owner', 'caretaker', 'viewer'])
-                   ->exists();
+        if ($user->hasRole('admin')) {
+            return true;
+        }
+
+        return $device->users()
+            ->where('user_id', $user->id)
+            ->whereIn('relationship_type', ['owner', 'caretaker', 'viewer'])
+            ->exists();
     }
 
     /**
@@ -100,12 +103,15 @@ class DevicePolicy
      */
     public function viewHealth(User $user, Device $device): bool
     {
+        if ($user->hasRole('admin')) {
+            return true;
+        }
+
         if (!$user->hasDeviceAccess($device)) {
             return false;
         }
 
-        $permissions = $user->getDevicePermissions($device);
-        return in_array('view_health', $permissions);
+        return $user->hasPermission('device.health');
     }
 
     /**

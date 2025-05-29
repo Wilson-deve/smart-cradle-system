@@ -34,6 +34,13 @@ class AuthenticatedSessionController extends Controller
         session()->regenerate();
 
         $user = $request->user();
+        \Log::info('User authenticated', [
+            'id' => $user->id,
+            'email' => $user->email,
+            'roles' => $user->roles()->pluck('name'),
+            'is_admin' => $user->isAdmin(),
+            'first_role' => $user->roles->first()?->name,
+        ]);
         
         // Redirect based on user role
         if ($user->isAdmin()) {

@@ -27,7 +27,7 @@ class User extends Authenticatable
         'email',
         'password',
         'status',
-        'role_id',
+        'last_active_at',
     ];
 
     /**
@@ -57,58 +57,130 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'last_active_at' => 'datetime',
+            'settings' => 'array',
         ];
     }
 
-    public function devices()
+    public function roles(): BelongsToMany
     {
-        return $this->hasMany(Device::class);
+        return $this->belongsToMany(Role::class);
     }
 
-    public function assignedDevices()
+    public function devices(): BelongsToMany
     {
-        return $this->belongsToMany(Device::class, 'device_babysitter', 'babysitter_id', 'device_id')
-            ->withPivot('status')
+        return $this->belongsToMany(Device::class)
+            ->withPivot('relationship_type', 'permissions')
             ->withTimestamps();
     }
 
-    public function babysitters()
+    /**
+     * Get devices assigned to the babysitter
+     */
+    public function assignedDevices(): BelongsToMany
     {
-        return $this->belongsToMany(User::class, 'parent_babysitter', 'parent_id', 'babysitter_id')
-            ->withPivot('status')
+        return $this->devices()
+            ->wherePivot('relationship_type', 'babysitter')
+            ->withPivot(['permissions', 'relationship_type'])
             ->withTimestamps();
     }
 
-    public function babyProfile()
+    /**
+     * Get all babysitters associated with this parent user.
+     */
+    public function babysitters(): HasMany
     {
-        return $this->hasOne(BabyProfile::class);
+        return $this->hasMany(Babysitter::class, 'parent_id');
     }
-    
-    // Optional: Add convenience methods
+
+    /**
+     * Get all parents associated with the devices this babysitter has access to.
+     */
+    public function parents(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'device_user', 'device_id', 'user_id')
+            ->join('device_user as babysitter_devices', function ($join) {
+                $join->on('device_user.device_id', '=', 'babysitter_devices.device_id')
+                    ->where('babysitter_devices.user_id', '=', $this->id)
+                    ->where('babysitter_devices.relationship_type', '=', 'babysitter');
+            })
+            ->where('device_user.relationship_type', '=', 'owner')
+            ->select('users.*', 'device_user.relationship_type', 'device_user.permissions')
+            ->distinct();
+    }
+
+    public function babyProfiles(): HasMany
+    {
+        return $this->hasMany(BabyProfile::class);
+    }
+
+    public function systemLogs(): HasMany
+    {
+        return $this->hasMany(SystemLog::class);
+    }
+
+    /**
+     * Get all alerts associated with this user.
+     */
+    public function alerts(): HasMany
+    {
+        return $this->hasMany(Alert::class);
+    }
+
+    public function setRole(Role $role): void
+    {
+        // Remove all existing roles
+        $this->roles()->detach();
+        // Attach the new role
+        $this->roles()->attach($role);
+    }
+
+    public function hasRole(string $role): bool
+    {
+        return $this->roles()
+            ->where('slug', $role)
+            ->exists();
+    }
+
     public function isAdmin(): bool
     {
         return $this->hasRole('admin');
     }
-    
+
     public function isParent(): bool
     {
         return $this->hasRole('parent');
     }
-    
+
     public function isBabysitter(): bool
     {
         return $this->hasRole('babysitter');
     }
-    
+
+    public function hasPermission(string $permission): bool
+    {
+        return $this->roles()
+            ->whereHas('permissions', function ($query) use ($permission) {
+                $query->where('slug', $permission);
+            })
+            ->exists();
+    }
+
     public function hasDeviceAccess(Device $device): bool
     {
-        return $this->devices()->where('device_id', $device->id)->exists();
+        return $this->hasRole('admin') || 
+            $this->devices()
+                ->where('device_id', $device->id)
+                ->exists();
     }
-    
-    public function getDevicePermissions(Device $device)
+
+    public function getDevicePermissions(Device $device): array
     {
-        $relationship = $this->devices()->where('device_id', $device->id)->first();
-        return $relationship ? json_decode($relationship->pivot->permissions, true) : [];
+        $pivot = $this->devices()
+            ->where('device_id', $device->id)
+            ->first()?->pivot;
+
+        return $pivot ? json_decode($pivot->permissions, true) ?? [] : [];
     }
 
     /**
@@ -135,21 +207,6 @@ class User extends Authenticatable
     public function permissions()
     {
         return $this->belongsToMany(Permission::class, 'user_permission');
-    }
-
-    public function hasPermission(string $permission): bool
-    {
-        // Check if user has the permission directly
-        if ($this->permissions()->where('slug', $permission)->exists()) {
-            return true;
-        }
-
-        // Check if any of the user's roles have the permission
-        return $this->roles()
-            ->whereHas('permissions', function ($query) use ($permission) {
-                $query->where('slug', $permission);
-            })
-            ->exists();
     }
 
     public function hasAnyPermission(array $permissions): bool

@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 
 class Device extends Model
 {
@@ -42,10 +44,26 @@ class Device extends Model
         'usage_statistics' => 'array',
     ];
 
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::created(function ($device) {
+            $device->update(['last_activity_at' => now()]);
+        });
+
+        // Update last_activity_at when new sensor readings are added
+        static::updated(function ($device) {
+            if ($device->isDirty(['sensor_readings'])) {
+                $device->update(['last_activity_at' => now()]);
+            }
+        });
+    }
+
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class)
-            ->withPivot('relationship_type')
+            ->withPivot('relationship_type', 'permissions')
             ->withTimestamps();
     }
 
@@ -74,9 +92,62 @@ class Device extends Model
         return $this->morphMany(Notification::class, 'notifiable');
     }
 
-    public function getOwners()
+    public function settings(): HasOne
     {
-        return $this->users()->wherePivot('relationship_type', 'owner');
+        return $this->hasOne(DeviceSetting::class);
+    }
+
+    /**
+     * Get the current lullaby through device settings.
+     */
+    public function currentLullaby()
+    {
+        return $this->hasOneThrough(
+            Lullaby::class,
+            DeviceSetting::class,
+            'device_id', // Foreign key on device_settings table
+            'id', // Foreign key on lullabies table
+            'id', // Local key on devices table
+            'current_lullaby_id' // Local key on device_settings table
+        );
+    }
+
+    /**
+     * Get the current projector content through device settings.
+     */
+    public function currentContent()
+    {
+        return $this->hasOneThrough(
+            ProjectorContent::class,
+            DeviceSetting::class,
+            'device_id', // Foreign key on device_settings table
+            'id', // Foreign key on projector_contents table
+            'id', // Local key on devices table
+            'current_content_id' // Local key on device_settings table
+        );
+    }
+
+    public function getOwner()
+    {
+        return $this->users()
+            ->wherePivot('relationship_type', 'owner')
+            ->first();
+    }
+
+    public function hasUser(User $user): bool
+    {
+        return $this->users()
+            ->where('user_id', $user->id)
+            ->exists();
+    }
+
+    public function getUserPermissions(User $user): array
+    {
+        $pivot = $this->users()
+            ->where('user_id', $user->id)
+            ->first()?->pivot;
+
+        return $pivot ? json_decode($pivot->permissions, true) ?? [] : [];
     }
 
     public function getCaretakers()

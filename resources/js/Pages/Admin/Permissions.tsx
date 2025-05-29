@@ -1,5 +1,5 @@
 import AdminLayout from '@/Layouts/AdminLayout';
-import { PermissionData, RoleData } from '@/types/roles';
+import { PermissionData } from '@/types/roles';
 import { Dialog, Transition } from '@headlessui/react';
 import {
   DevicePhoneMobileIcon,
@@ -12,8 +12,9 @@ import {
 } from '@heroicons/react/24/outline';
 import { Head, router } from '@inertiajs/react';
 import { Fragment, useEffect, useState } from 'react';
+import { PageProps } from '@/types';
 
-interface Props {
+interface Props extends PageProps {
   roles: RoleData[];
   permissions: PermissionData[];
   flash?: {
@@ -32,11 +33,37 @@ interface UpdateResponse {
   permissions: PermissionData[];
 }
 
-export default function Permissions({
-  roles: initialRoles,
-  permissions,
-  flash,
-}: Props) {
+interface Device {
+  id: number;
+  name: string;
+  status: string;
+}
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  status: string;
+  devices?: Device[];
+}
+
+interface RoleData {
+  id: number;
+  name: string;
+  permissions?: PermissionData[];
+  users?: User[];
+}
+
+export default function Permissions({ auth, roles: initialRoles, permissions, flash }: Props) {
+  // If no auth data, show loading state
+  if (!auth?.user) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-gray-500">Loading...</div>
+      </div>
+    );
+  }
+
   const [roles, setRoles] = useState<RoleData[]>(initialRoles);
   const [selectedRole, setSelectedRole] = useState<RoleData | null>(null);
   const [activeTab, setActiveTab] = useState<
@@ -50,14 +77,12 @@ export default function Permissions({
     name: '',
     description: '',
   });
-  const [showFlash, setShowFlash] = useState(false);
+  const [showFlash, setShowFlash] = useState(true);
 
   useEffect(() => {
-    if (flash?.message) {
+    if (flash) {
       setShowFlash(true);
-      const timer = setTimeout(() => {
-        setShowFlash(false);
-      }, 3000);
+      const timer = setTimeout(() => setShowFlash(false), 3000);
       return () => clearTimeout(timer);
     }
   }, [flash]);
@@ -161,7 +186,7 @@ export default function Permissions({
   };
 
   return (
-    <AdminLayout>
+    <AdminLayout user={auth.user}>
       <Head title="Permissions Management" />
       {showFlash && flash && (
         <div className="fixed right-4 top-4 z-50">
@@ -204,7 +229,7 @@ export default function Permissions({
                 </h2>
                 <button
                   onClick={() => setIsPermissionModalOpen(true)}
-                  className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+                  className="inline-flex items-center rounded-md bg-gray-800 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-gray-900"
                 >
                   <PlusIcon className="mr-2 h-5 w-5" />
                   Add Permission
@@ -531,7 +556,7 @@ export default function Permissions({
                     </button>
                     <button
                       type="button"
-                      className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+                      className="inline-flex justify-center rounded-md border border-transparent bg-gray-800 px-4 py-2 text-sm font-medium text-white hover:bg-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-500 focus-visible:ring-offset-2"
                       onClick={handleCreatePermission}
                     >
                       Create

@@ -1,127 +1,148 @@
+import { useState, useEffect } from 'react';
+import { Link } from '@inertiajs/react';
+import {
+  BellIcon,
+  ChartBarIcon,
+  HomeIcon,
+  VideoCameraIcon,
+  Cog6ToothIcon,
+  ChatBubbleLeftRightIcon,
+} from '@heroicons/react/24/outline';
+import axios from '@/lib/axios';
+import { toast } from '@/Components/ui/use-toast';
 import Sidebar from '@/Components/RoleBased/Sidebar';
 import { Role } from '@/types/roles';
-import { Menu, Transition } from '@headlessui/react';
-import { BellIcon, UserCircleIcon } from '@heroicons/react/24/outline';
-import { Link, router } from '@inertiajs/react';
-import { Fragment, PropsWithChildren } from 'react';
 
-interface Props extends PropsWithChildren {
-  user?: {
+interface Props {
+  user: {
     name: string;
     email: string;
-    current_device?: {
-      id: number;
-      name: string;
-    };
+    role: string;
   };
+  children: React.ReactNode;
 }
 
-export default function BabysitterLayout({ children, user }: Props) {
-  const handleLogout = () => {
-    router.post('/logout');
+interface Notification {
+  id: number;
+  type: string;
+  message: string;
+  created_at: string;
+  read: boolean;
+}
+
+export default function BabysitterLayout({ user, children }: Props) {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchNotifications = async () => {
+    try {
+      const response = await axios.get('/api/babysitter/notifications');
+      setNotifications(response.data);
+      setUnreadCount(response.data.filter((n: Notification) => !n.read).length);
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000); // Fetch every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  const markAsRead = async (notificationId: number) => {
+    try {
+      await axios.put(`/api/babysitter/notifications/${notificationId}/read`);
+      await fetchNotifications();
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Slimmer Sidebar */}
-      <div className="fixed inset-y-0 left-0 z-50 w-56 transform bg-indigo-50 transition duration-200 ease-in-out">
-        <Sidebar
-          userRole={Role.BABYSITTER}
-          currentDevice={user?.current_device}
-        />
-      </div>
+    <div className="min-h-screen bg-gray-100">
+      <div className="flex h-screen">
+        {/* Sidebar */}
+        <Sidebar userRole={Role.BABYSITTER} className="w-64 flex-shrink-0" />
 
-      {/* Main content */}
-      <div className="pl-56">
-        {/* Top Navigation */}
-        <div className="bg-white shadow">
-          <div className="flex h-16 items-center justify-between px-4">
-            {/* Current Device Status (for babysitters) */}
-            {user?.current_device && (
-              <div className="flex items-center space-x-2">
-                <span className="inline-block h-3 w-3 rounded-full bg-green-400"></span>
-                <span className="text-sm font-medium text-gray-700">
-                  {user.current_device.name}
-                </span>
-              </div>
-            )}
+        {/* Main Content */}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Top Bar */}
+          <div className="bg-white border-b border-gray-200 flex h-16 items-center justify-between px-4">
+            <div className="flex items-center">
+              <img
+                className="h-8 w-auto"
+                src="/images/logo.png"
+                alt="Smart Cradle"
+              />
+            </div>
 
-            {/* Right-side icons */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center">
               {/* Notifications */}
-              <button className="p-1 text-gray-400 hover:text-gray-500">
-                <BellIcon className="h-6 w-6" />
-              </button>
-
-              {/* Profile dropdown */}
-              <Menu as="div" className="relative ml-3">
-                <Menu.Button className="flex items-center rounded-full bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
-                  <span className="sr-only">Open user menu</span>
-                  <UserCircleIcon className="h-8 w-8 text-gray-400" />
-                </Menu.Button>
-                <Transition
-                  as={Fragment}
-                  enter="transition ease-out duration-100"
-                  enterFrom="transform opacity-0 scale-95"
-                  enterTo="transform opacity-100 scale-100"
-                  leave="transition ease-in duration-75"
-                  leaveFrom="transform opacity-100 scale-100"
-                  leaveTo="transform opacity-0 scale-95"
+              <div className="relative ml-3">
+                <button
+                  type="button"
+                  className="relative rounded-full bg-white p-1 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                  onClick={() => setShowNotifications(!showNotifications)}
                 >
-                  <Menu.Items className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-                    {user && (
+                  <BellIcon className="h-6 w-6" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">
+                      {unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                {showNotifications && (
+                  <div className="absolute right-0 mt-2 w-80 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                    <div className="py-1">
                       <div className="border-b border-gray-200 px-4 py-2">
-                        <p className="text-sm font-medium text-gray-900">
-                          {user.name}
-                        </p>
-                        <p className="text-xs text-gray-500">Babysitter</p>
+                        <h3 className="text-sm font-medium text-gray-900">Notifications</h3>
                       </div>
-                    )}
-                    <Menu.Item>
-                      {({ active }) => (
-                        <Link
-                          href="/babysitter/profile"
-                          className={`block px-4 py-2 text-sm text-gray-700 ${
-                            active ? 'bg-gray-100' : ''
-                          }`}
-                        >
-                          Your Profile
-                        </Link>
-                      )}
-                    </Menu.Item>
-                    <Menu.Item>
-                      {({ active }) => (
-                        <button
-                          onClick={handleLogout}
-                          className={`block w-full px-4 py-2 text-left text-sm text-gray-700 ${
-                            active ? 'bg-gray-100' : ''
-                          }`}
-                        >
-                          Sign out
-                        </button>
-                      )}
-                    </Menu.Item>
-                  </Menu.Items>
-                </Transition>
-              </Menu>
+                      <div className="max-h-96 overflow-y-auto">
+                        {notifications.length > 0 ? (
+                          notifications.map((notification) => (
+                            <div
+                              key={notification.id}
+                              className={`px-4 py-2 hover:bg-gray-50 ${
+                                !notification.read ? 'bg-blue-50' : ''
+                              }`}
+                              onClick={() => markAsRead(notification.id)}
+                            >
+                              <p className="text-sm text-gray-900">{notification.message}</p>
+                              <p className="text-xs text-gray-500">
+                                {new Date(notification.created_at).toLocaleString()}
+                              </p>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="px-4 py-2 text-sm text-gray-500">
+                            No notifications
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Profile */}
+              <div className="ml-3">
+                <div className="flex items-center">
+                  <span className="text-sm font-medium text-gray-700">
+                    {user.name}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Main Content Area */}
-        <main className="py-6">
-          <div className="mx-auto px-4 sm:px-6 md:px-8">
-            {/* Emergency Alert Banner (conditionally shown) */}
-            <div className="mb-6 rounded-lg bg-red-50 p-4 text-red-800">
-              <div className="flex items-center">
-                <span className="mr-2 font-medium">Emergency Alert:</span>
-                <span>Baby is crying - Check immediately</span>
-              </div>
-            </div>
-
+          {/* Page Content */}
+          <div className="flex-1 overflow-auto p-4">
             {children}
           </div>
-        </main>
+        </div>
       </div>
     </div>
   );

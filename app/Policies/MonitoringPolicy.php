@@ -14,7 +14,7 @@ class MonitoringPolicy
      */
     public function view(User $user): bool
     {
-        return $user->hasRole('admin') || $user->hasPermission('monitoring.view');
+        return $user->hasPermission('monitoring.view');
     }
 
     /**
@@ -30,6 +30,22 @@ class MonitoringPolicy
      */
     public function alerts(User $user): bool
     {
-        return $user->hasPermission('monitoring.alerts');
+        return $user->hasPermission('alerts.view');
+    }
+
+    /**
+     * Determine whether the user can update alerts.
+     */
+    public function updateAlerts(User $user): bool
+    {
+        return $user->hasPermission('alerts.update');
+    }
+
+    /**
+     * Determine whether the user can view device health data.
+     */
+    public function viewHealth(User $user): bool
+    {
+        return $user->hasPermission('device.health');
     }
 } 

@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Illuminate\Http\Request;
 use Inertia\Middleware;
+use Illuminate\Support\Facades\Log;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -29,17 +30,40 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
-        return [
-            ...parent::share($request),
-            'auth' => [
-                'user' => $request->user()  ? [
-                    'id' => $request->user()->id,
-                    'name' => $request->user()->name,
-                    'roles' => method_exists($request->user(), 'getRoleNames') ? $request->user()->getRoleNames() : [],
-                    'permissions' => method_exists($request->user(), 'getAllPermissions') ? $request->user()->getAllPermissions()->pluck('name') : [],
-                ] : null,
-    
+        $user = $request->user();
+        
+        if ($user) {
+            $role = $user->roles->first();
+            Log::info('Sharing auth data', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'role' => $role ? $role->name : null,
+                'role_slug' => $role ? $role->slug : null,
+            ]);
+
+            return array_merge(parent::share($request), [
+                'auth' => [
+                    'user' => [
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'email' => $user->email,
+                        'role' => $role ? $role->slug : null,
+                        'permissions' => $user->getPermissions(),
+                    ],
+                ],
+                'flash' => [
+                    'message' => fn () => $request->session()->get('message'),
+                    'error' => fn () => $request->session()->get('error'),
+                ],
+            ]);
+        }
+
+        return array_merge(parent::share($request), [
+            'auth' => ['user' => null],
+            'flash' => [
+                'message' => fn () => $request->session()->get('message'),
+                'error' => fn () => $request->session()->get('error'),
             ],
-        ];
+        ]);
     }
 }

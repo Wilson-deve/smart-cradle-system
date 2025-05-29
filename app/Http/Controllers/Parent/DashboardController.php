@@ -3,73 +3,37 @@
 namespace App\Http\Controllers\Parent;
 
 use App\Http\Controllers\Controller;
-use App\Models\Device;
-use App\Models\User;
 use App\Models\Alert;
-use App\Models\SensorReading;
-use Illuminate\Http\Request;
+use App\Models\Activity;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
 class DashboardController extends Controller
 {
-    public function index(Request $request)
+    public function index()
     {
-        $user = $request->user();
+        $user = Auth::user();
         
-        // Get user's devices with their latest sensor readings
-        $devices = $user->devices()->with(['sensorReadings' => function ($query) {
-            $query->latest()->take(5);
-        }])->get();
-
-        // Get assigned babysitters
-        $babysitters = $user->babysitters()->get();
-
-        // Get recent alerts
-        $alerts = $user->alerts()
-            ->where('created_at', '>=', now()->subDays(7))
-            ->orderBy('created_at', 'desc')
+        // Get devices through the many-to-many relationship
+        $devices = $user->devices()
+            ->with(['settings'])
+            ->get();
+            
+        // Get alerts and activities for the user's devices
+        $alerts = Alert::whereIn('device_id', $devices->pluck('id'))
+            ->latest()
+            ->take(5)
+            ->get();
+            
+        $recent_activities = Activity::whereIn('device_id', $devices->pluck('id'))
+            ->latest()
+            ->take(10)
             ->get();
 
-        // Calculate health metrics
-        $healthMetrics = $this->calculateHealthMetrics($user);
-
         return Inertia::render('Parent/Dashboard', [
-            'devices' => $devices->map(function ($device) {
-                return [
-                    'id' => $device->id,
-                    'name' => $device->name,
-                    'status' => $device->status,
-                    'last_reading' => [
-                        'temperature' => $device->sensorReadings->first()?->temperature ?? 0,
-                        'humidity' => $device->sensorReadings->first()?->humidity ?? 0,
-                        'sound_level' => $device->sensorReadings->first()?->sound_level ?? 0,
-                        'motion' => $device->sensorReadings->first()?->motion ?? false,
-                    ],
-                    'controls' => [
-                        'swing' => $device->swing_enabled,
-                        'lullaby' => $device->lullaby_enabled,
-                    ],
-                ];
-            }),
-            'babysitters' => $babysitters->map(function ($babysitter) {
-                return [
-                    'id' => $babysitter->id,
-                    'name' => $babysitter->name,
-                    'email' => $babysitter->email,
-                    'status' => $babysitter->pivot->status,
-                    'last_active' => $babysitter->last_active_at?->diffForHumans() ?? 'Never',
-                ];
-            }),
-            'alerts' => $alerts->map(function ($alert) {
-                return [
-                    'id' => $alert->id,
-                    'type' => $alert->type,
-                    'message' => $alert->message,
-                    'severity' => $alert->severity,
-                    'created_at' => $alert->created_at->diffForHumans(),
-                ];
-            }),
-            'health_metrics' => $healthMetrics,
+            'devices' => $devices,
+            'alerts' => $alerts,
+            'recent_activities' => $recent_activities,
         ]);
     }
 

@@ -16,7 +16,7 @@ class RolePermissionSeeder extends Seeder
         $adminRole = DB::table('roles')->where('slug', 'admin')->first();
         
         if ($adminRole) {
-            // Admin permissions
+            // Admin permissions - has access to everything
             $adminPermissions = [
                 'user.view',
                 'user.create',
@@ -31,13 +31,12 @@ class RolePermissionSeeder extends Seeder
                 'device.health',
                 'monitoring.view',
                 'monitoring.control',
-                'monitoring.alerts',
                 'alerts.view',
+                'alerts.manage',
                 'alerts.update',
                 'system.settings',
                 'system.logs',
-                'system.backup',
-                'manage_alerts'
+                'system.backup'
             ];
             
             foreach ($permissions as $permission) {
@@ -68,12 +67,9 @@ class RolePermissionSeeder extends Seeder
                 'device.health',
                 'monitoring.view',
                 'monitoring.control',
-                'monitoring.alerts',
                 'alerts.view',
                 'alerts.update',
-                'user.view',  // To manage babysitters
-                'view_alerts',
-                'view.dashboard'
+                'user.view'  // To manage babysitters
             ];
             
             foreach ($permissions as $permission) {
@@ -102,9 +98,7 @@ class RolePermissionSeeder extends Seeder
                 'device.monitor',
                 'device.health',
                 'monitoring.view',
-                'monitoring.alerts',
-                'alerts.view',
-                'alerts.update'
+                'alerts.view'
             ];
             
             foreach ($permissions as $permission) {

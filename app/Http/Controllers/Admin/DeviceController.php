@@ -70,6 +70,12 @@ class DeviceController extends Controller
             'ip_address' => 'required|string|max:255',
             'owner_id' => 'required|exists:users,id',
         ]);
+
+        // Check if the owner already has a device
+        $owner = User::findOrFail($validated['owner_id']);
+        if ($owner->hasRole('parent') && $owner->devices()->count() > 0) {
+            return back()->withErrors(['owner_id' => 'This parent already has a device assigned.']);
+        }
         
         $device = Device::create([
             'name' => $validated['name'],
@@ -104,12 +110,25 @@ class DeviceController extends Controller
      */
     public function show(Device $device)
     {
-        $this->authorize('view', $device);
+        // Check if user has any access to the device
+        if (!auth()->user()->hasDeviceAccess($device) && !auth()->user()->hasRole('admin')) {
+            return response()->json([
+                'message' => 'You do not have permission to view this device.',
+            ], 403);
+        }
         
         $device->load(['users', 'logs', 'alerts', 'sensorReadings']);
         
-        return Inertia::render('Admin/Devices/Show', [
+        return response()->json([
             'device' => $device,
+            'can' => [
+                'view' => auth()->user()->can('view', $device),
+                'update' => auth()->user()->can('update', $device),
+                'delete' => auth()->user()->can('delete', $device),
+                'manage_users' => auth()->user()->can('manageUsers', $device),
+                'control' => auth()->user()->can('control', $device),
+                'monitor' => auth()->user()->can('monitor', $device),
+            ],
         ]);
     }
 
@@ -158,6 +177,18 @@ class DeviceController extends Controller
             'status' => 'required|in:online,offline,maintenance',
             'owner_id' => 'required|exists:users,id',
         ]);
+
+        // Check if the new owner already has a device (excluding this device)
+        $newOwner = User::findOrFail($validated['owner_id']);
+        if ($newOwner->hasRole('parent')) {
+            $existingDevice = $newOwner->devices()
+                ->where('devices.id', '!=', $device->id)
+                ->first();
+            
+            if ($existingDevice) {
+                return back()->withErrors(['owner_id' => 'This parent already has another device assigned.']);
+            }
+        }
         
         $device->update([
             'name' => $validated['name'],
@@ -167,18 +198,19 @@ class DeviceController extends Controller
             'status' => $validated['status'],
         ]);
         
-        // Update owner if changed
+        // Update owner if changed or if there is no current owner
         $currentOwner = $device->users()->wherePivot('relationship_type', 'owner')->first();
-        if ($currentOwner && $currentOwner->id !== $validated['owner_id']) {
-            $device->users()->detach($currentOwner->id);
+        if (!$currentOwner || $currentOwner->id !== $validated['owner_id']) {
+            if ($currentOwner) {
+                $device->users()->detach($currentOwner->id);
+            }
             $device->users()->attach($validated['owner_id'], [
                 'relationship_type' => 'owner',
                 'permissions' => json_encode(['view', 'control', 'manage']),
             ]);
         }
         
-        return redirect()->route('admin.devices.show', $device)
-            ->with('success', 'Device updated successfully.');
+        return to_route('admin.devices.index')->with('success', 'Device updated successfully.');
     }
 
     /**

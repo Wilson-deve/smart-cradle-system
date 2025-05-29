@@ -4,12 +4,10 @@ namespace App\Http\Controllers\Parent;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ProfileUpdateRequest;
-use App\Models\User;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Redirect;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -17,71 +15,51 @@ use Inertia\Response;
 class ProfileController extends Controller
 {
     /**
-     * Display the parent's profile form.
+     * Display the user's profile form.
      */
     public function edit(Request $request): Response
     {
-        $user = $request->user();
-        $roles = $user->roles()->pluck('name');
-        $permissions = $user->getPermissions();
-        $devices = $user->devices()->with('sensorReadings')->get();
-
         return Inertia::render('Parent/Profile/Edit', [
-            'mustVerifyEmail' => $user instanceof MustVerifyEmail,
+            'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
             'status' => session('status'),
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'roles' => $roles,
-                'permissions' => $permissions,
-                'created_at' => $user->created_at->format('Y-m-d H:i:s'),
-                'last_login_at' => $user->last_login_at?->format('Y-m-d H:i:s'),
-            ],
-            'devices' => $devices,
-            'flash' => [
-                'message' => session('status'),
-                'type' => session('status') ? 'success' : null,
-            ],
         ]);
     }
 
     /**
-     * Update the parent's profile information.
+     * Update the user's profile information.
      */
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
-        $user = $request->user();
-        $user->fill($request->validated());
+        $request->user()->fill($request->validated());
 
-        if ($user->isDirty('email')) {
-            $user->email_verified_at = null;
+        if ($request->user()->isDirty('email')) {
+            $request->user()->email_verified_at = null;
         }
 
-        $user->save();
+        $request->user()->save();
 
-        return Redirect::route('parent.profile.edit')->with('status', 'Profile updated successfully.');
+        return Redirect::route('parent.profile.edit');
     }
 
     /**
-     * Update the parent's password.
+     * Update the user's password.
      */
     public function updatePassword(Request $request): RedirectResponse
     {
-        $request->validate([
+        $validated = $request->validate([
             'current_password' => ['required', 'current_password'],
             'password' => ['required', 'confirmed', 'min:8'],
         ]);
 
-        $user = $request->user();
-        $user->password = Hash::make($request->password);
-        $user->save();
+        $request->user()->update([
+            'password' => bcrypt($validated['password']),
+        ]);
 
-        return Redirect::route('parent.profile.edit')->with('status', 'Password updated successfully.');
+        return Redirect::route('parent.profile.edit')->with('status', 'password-updated');
     }
 
     /**
-     * Delete the parent's account.
+     * Delete the user's account.
      */
     public function destroy(Request $request): RedirectResponse
     {
@@ -98,6 +76,6 @@ class ProfileController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return Redirect::to('/')->with('status', 'Account deleted successfully.');
+        return Redirect::to('/');
     }
 } 

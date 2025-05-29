@@ -5,7 +5,10 @@ use App\Http\Controllers\CradleController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\MonitoringController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\BabysitterController;
+use App\Http\Controllers\MessageController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Http\Request;
 
 /*
 |--------------------------------------------------------------------------
@@ -24,9 +27,43 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/dashboard', [AdminController::class, 'dashboard']);
         Route::get('/users', [AdminController::class, 'userManagement']);
         Route::get('/devices', [AdminController::class, 'deviceManagement']);
+        Route::get('/monitoring', [AdminController::class, 'deviceMonitoring']); 
         Route::get('/logs', [AdminController::class, 'systemLogs']);
         Route::get('/alerts', [AdminController::class, 'alerts']);
         Route::get('/health', [AdminController::class, 'systemHealth']);
+
+        // Admin Monitoring routes
+        Route::middleware('permission:monitoring.view')->group(function () {
+            Route::get('/monitoring', [MonitoringController::class, 'index']);
+            Route::get('/monitoring/devices/{device}/data', [MonitoringController::class, 'getDeviceData']);
+            Route::get('/monitoring/devices/{device}/camera', [MonitoringController::class, 'getCameraFeed']);
+            Route::get('/monitoring/devices/{device}/health', [MonitoringController::class, 'getHealthAnalytics']);
+            Route::get('/monitoring/logs', [MonitoringController::class, 'getSystemLogs']);
+            Route::get('/monitoring/alerts', [MonitoringController::class, 'getAlerts']);
+        });
+
+        // Admin Alert routes
+        Route::middleware('permission:alerts.view')->group(function () {
+            Route::put('/monitoring/alerts/{alert}/read', [MonitoringController::class, 'markAlertAsRead'])->middleware('permission:alerts.update');
+            Route::put('/monitoring/alerts/read-all', [MonitoringController::class, 'markAllAlertsAsRead'])->middleware('permission:alerts.update');
+        });
+    });
+
+    // Babysitter routes
+    Route::middleware(['auth:sanctum', 'role:babysitter'])->prefix('babysitter')->group(function () {
+        Route::get('/dashboard', [BabysitterController::class, 'dashboard']);
+        Route::get('/monitoring', [BabysitterController::class, 'monitoring']);
+        Route::get('/controls', [BabysitterController::class, 'controls']);
+        Route::get('/lullabies', [BabysitterController::class, 'lullabies']);
+        Route::get('/notifications', [BabysitterController::class, 'notifications']);
+        
+        // Device Control Routes
+        Route::post('/cradle/{device}/swing', [BabysitterController::class, 'controlSwing']);
+        Route::post('/cradle/{device}/lullaby', [BabysitterController::class, 'controlLullaby']);
+        Route::post('/cradle/{device}/projector', [BabysitterController::class, 'controlProjector']);
+        
+        // Notification Routes
+        Route::put('/notifications/{notification}/read', [BabysitterController::class, 'markNotificationAsRead']);
     });
 
     // Device routes
@@ -49,16 +86,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/users/{user}/password', [UserController::class, 'updatePassword']);
     Route::post('/users/{user}/roles/{role}', [UserController::class, 'assignRole']);
     Route::delete('/users/{user}/roles/{role}', [UserController::class, 'removeRole']);
-
-    // Monitoring routes
-    Route::get('/monitoring', [MonitoringController::class, 'index']);
-    Route::get('/monitoring/devices/{device}/data', [MonitoringController::class, 'getDeviceData']);
-    Route::get('/monitoring/devices/{device}/camera', [MonitoringController::class, 'getCameraFeed']);
-    Route::get('/monitoring/devices/{device}/health', [MonitoringController::class, 'getHealthAnalytics']);
-    Route::get('/monitoring/alerts', [MonitoringController::class, 'getAlerts']);
-    Route::put('/monitoring/alerts/{alert}/read', [MonitoringController::class, 'markAlertAsRead']);
-    Route::put('/monitoring/alerts/read-all', [MonitoringController::class, 'markAllAlertsAsRead']);
-    Route::get('/monitoring/logs', [MonitoringController::class, 'getSystemLogs']);
 
     // Cradle routes
     Route::get('/cradle/{device}', [CradleController::class, 'index']);
